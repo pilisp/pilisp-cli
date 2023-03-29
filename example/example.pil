@@ -1,0 +1,3 @@
+#!/usr/bin/env pl -l
+(println "You passed in" (count *command-line-args*) "command-line arguments:"
+         (str/join ", " *command-line-args*))

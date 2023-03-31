@@ -3,8 +3,20 @@ import 'dart:io';
 
 import 'package:pilisp/pilisp.dart';
 
-final loadFileSym = PLSymbol('repl/load-file');
+import 'pilisp_cli_impl.dart';
 
+/// Run a PiLisp REPL.
+///
+/// The REPL can handle multi-line programs, but otherwise provides no
+/// readline-like capabilities.
+///
+/// Like Clojure's REPL, this REPL binds the symbols `*1`, `*2`, and `*3` with
+/// the last three evaluation results. If an exception has been thrown, it binds
+/// the exception to the symbol `*e`.
+///
+/// This REPL is also aware of the [PLEnv.parent] value and the fact that PiLisp
+/// defines a `parent-to-string` function. It invokes that function on the
+/// parent value to change the REPL prompt when the parent is set.
 void repl(PLEnv env) {
   env.addBindingValue(PLSymbol('*3'), null);
   env.addBindingValue(PLSymbol('*2'), null);
@@ -83,10 +95,9 @@ void repl(PLEnv env) {
   }
 }
 
-String readFile(String path) {
-  return File(path).readAsStringSync();
-}
-
+/// Load (read + eval) the file at the given [path].
+///
+/// The program will exit after loading the file.
 Future<void> loadFile(PLEnv env, String path, Iterable<String> args) async {
   final programSource = readFile(path);
   PiLisp.loadString('''
@@ -98,15 +109,8 @@ Future<void> loadFile(PLEnv env, String path, Iterable<String> args) async {
   await env.shutDown();
 }
 
-final usage = r'''
-PiLisp
-
-pl                  - Run PiLisp REPL
-pl -h/--help        - Print usage information
-pl -l/--load <file> - Load the file as PiLisp code, binds args to *command-line-args*
-pl -r/--repl        - Run PiLisp REPL
-''';
-
+/// A proxy for your [main] function, if you want this package to handle all of
+/// your command-line arguments.
 void cliMain(PLEnv env, List<String> mainArgs) async {
   if (mainArgs.isEmpty) {
     repl(env);

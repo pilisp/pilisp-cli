@@ -104,10 +104,9 @@ Future<void> repl(PLEnv env) async {
   }
 }
 
-/// Load (read + eval) the file at the given [path].
-///
-/// The program will exit after loading the file.
-Future<void> loadFile(PLEnv env, String path, Iterable<String> args) async {
+/// Load (read + eval) the file at the given [path], returning the final value
+/// evaluated in the program.
+Future<Object?> loadFile(PLEnv env, String path, Iterable<String> args) async {
   final programSource = readFile(path);
   PiLisp.loadString('''
 (def *command-line-args* '[${args.map((e) => '"${e.replaceAll('"', '\\"')}"').join(' ')}])
@@ -119,8 +118,7 @@ Future<void> loadFile(PLEnv env, String path, Iterable<String> args) async {
   } else {
     programResult = programUnawaitedResult;
   }
-  stdout.writeln(PiLisp.printToString(programResult, env: env));
-  await env.shutDown();
+  return programResult;
 }
 
 /// A proxy for your [main] function, if you want this package to handle all of
@@ -137,7 +135,11 @@ void cliMain(PLEnv env, List<String> mainArgs) async {
       repl(env);
     } else if (arg == '-l' || arg == '--load') {
       if (mainArgs.length >= 2) {
-        await loadFile(env, mainArgs[1], mainArgs.skip(2));
+        final programResult =
+            await loadFile(env, mainArgs[1], mainArgs.skip(2));
+        stdout.writeln(PiLisp.printToString(programResult, env: env));
+        await env.shutDown();
+        exit(0);
       } else {
         print(usage);
         exit(1);

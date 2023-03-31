@@ -1,8 +1,7 @@
 name: pilisp_cli
-description: A starting point for Dart libraries or applications.
-version: 1.0.0
-publish_to: none
-# repository: https://github.com/my_org/my_repo
+description: Shared code for running a rudimentary command-line interface to the PiLisp programming language.
+version: 1.0.0-alpha.6
+repository: https://github.com/pilisp/pilisp-cli
 
 environment:
   sdk: '>=2.19.5 <3.0.0'

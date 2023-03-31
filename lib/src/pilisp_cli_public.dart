@@ -17,7 +17,7 @@ import 'pilisp_cli_impl.dart';
 /// This REPL is also aware of the [PLEnv.parent] value and the fact that PiLisp
 /// defines a `parent-to-string` function. It invokes that function on the
 /// parent value to change the REPL prompt when the parent is set.
-void repl(PLEnv env) {
+Future<void> repl(PLEnv env) async {
   env.addBindingValue(PLSymbol('*3'), null);
   env.addBindingValue(PLSymbol('*2'), null);
   env.addBindingValue(PLSymbol('*1'), null);
@@ -46,7 +46,9 @@ void repl(PLEnv env) {
 
     try {
       final programData = PiLisp.readString(programSource);
+      var shouldAwait = false;
       // NB. Support loading files despite lack of dart:io in core PiLisp
+      // TODO Consider approach with marker object like PLAwait
       if (programData == loadFileSym ||
           (programData is PLList && programData[0] == loadFileSym)) {
         if (programData is PLList) {
@@ -54,6 +56,7 @@ void repl(PLEnv env) {
           print('Loading $fileName');
           loadFile(env, fileName, []);
         } else {
+          // NB. Support pl> syntax without using that macro.
           final expr = PiLisp.readString('[ $programSource ]');
           if (expr is PLVector) {
             final fileName = expr.last.toString();
@@ -61,26 +64,32 @@ void repl(PLEnv env) {
             loadFile(env, fileName, []);
           }
         }
-      } else {
-        final programResult =
-            PiLisp.loadString('(pl>\n$programSource\n)', env: env);
-        // final programResult = PiLisp.loadString(programSource, env: env);
-        // NB: Make it stress-free to eval these REPL-specific bindings.
-        if (programData != PLSymbol('*3') &&
-            programData != PLSymbol('*2') &&
-            programData != PLSymbol('*1') &&
-            programData != PLSymbol('*e')) {
-          env.addBindingValue(
-              PLSymbol('*3'), env.getBindingValue(PLSymbol('*2')));
-          env.addBindingValue(
-              PLSymbol('*2'), env.getBindingValue(PLSymbol('*1')));
-          env.addBindingValue(PLSymbol('*1'), programResult);
-        }
-        stdout.writeln(PiLisp.printToString(programResult, env: env));
-        // Clean-up
-        showPrompt = true;
-        multiLineProgram = '';
+        continue;
       }
+      final programUnawaitedResult =
+          PiLisp.loadString('(pl>\n$programSource\n)', env: env);
+      // final programUnawaitedResult = PiLisp.loadString(programSource, env: env);
+      Object? programResult;
+      if (programUnawaitedResult is PLAwait) {
+        programResult = await programUnawaitedResult.value;
+      } else {
+        programResult = programUnawaitedResult;
+      }
+      // NB: Make it stress-free to eval these REPL-specific bindings.
+      if (programData != PLSymbol('*3') &&
+          programData != PLSymbol('*2') &&
+          programData != PLSymbol('*1') &&
+          programData != PLSymbol('*e')) {
+        env.addBindingValue(
+            PLSymbol('*3'), env.getBindingValue(PLSymbol('*2')));
+        env.addBindingValue(
+            PLSymbol('*2'), env.getBindingValue(PLSymbol('*1')));
+        env.addBindingValue(PLSymbol('*1'), programResult);
+      }
+      stdout.writeln(PiLisp.printToString(programResult, env: env));
+      // Clean-up
+      showPrompt = true;
+      multiLineProgram = '';
     } on UnexpectedEndOfInput {
       // In practice, these are async errors (see above) because the function is async.
       showPrompt = false;
@@ -103,9 +112,14 @@ Future<void> loadFile(PLEnv env, String path, Iterable<String> args) async {
   PiLisp.loadString('''
 (def *command-line-args* '[${args.map((e) => '"${e.replaceAll('"', '\\"')}"').join(' ')}])
 ''', env: env);
-  stdout.writeln(PiLisp.printToString(
-      PiLisp.loadString(programSource, env: env),
-      env: env));
+  final programUnawaitedResult = PiLisp.loadString(programSource, env: env);
+  Object? programResult;
+  if (programUnawaitedResult is PLAwait) {
+    programResult = await programUnawaitedResult.value;
+  } else {
+    programResult = programUnawaitedResult;
+  }
+  stdout.writeln(PiLisp.printToString(programResult, env: env));
   await env.shutDown();
 }
 
@@ -113,7 +127,7 @@ Future<void> loadFile(PLEnv env, String path, Iterable<String> args) async {
 /// your command-line arguments.
 void cliMain(PLEnv env, List<String> mainArgs) async {
   if (mainArgs.isEmpty) {
-    repl(env);
+    await repl(env);
   } else if (mainArgs.isNotEmpty) {
     final arg = mainArgs[0].trim();
     if (arg == '-h' || arg == '--help') {

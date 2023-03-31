@@ -1,13 +1,13 @@
 name: pilisp_cli
 description: Shared code for running a rudimentary command-line interface to the PiLisp programming language.
-version: 1.0.0-alpha.6
+version: 1.0.0-alpha.7
 repository: https://github.com/pilisp/pilisp-cli
 
 environment:
   sdk: '>=2.19.5 <3.0.0'
 
 dependencies:
-  pilisp: ^1.0.0-alpha.6
+  pilisp: ^1.0.0-alpha.7
 
 dev_dependencies:
   lints: ^2.0.0

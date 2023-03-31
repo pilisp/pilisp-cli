@@ -46,7 +46,6 @@ Future<void> repl(PLEnv env) async {
 
     try {
       final programData = PiLisp.readString(programSource);
-      var shouldAwait = false;
       // NB. Support loading files despite lack of dart:io in core PiLisp
       // TODO Consider approach with marker object like PLAwait
       if (programData == loadFileSym ||

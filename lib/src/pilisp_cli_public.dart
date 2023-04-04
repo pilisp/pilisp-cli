@@ -130,6 +130,9 @@ void cliMain(PLEnv env, List<String> mainArgs) async {
     if (arg == '-h' || arg == '--help') {
       print(usage);
       exit(0);
+    } else if (arg == '-e' || arg == '--eval') {
+      final programs = mainArgs.skip(1);
+      handleEval(env, programs);
     } else if (arg == '-r' || arg == '--repl') {
       repl(env);
     } else if (arg == '-l' || arg == '--load') {

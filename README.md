@@ -115,6 +115,12 @@ Copyright © Daniel Gregoire 2023
     PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
     OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
 
+### Exceptions
+
+**Project:** cli\_repl
+
+The cli\_repl code in this project has been copied and adapted from the [cli_repl](https://github.com/jathak/cli_repl) library by Jennifer Thakar, which is licensed under BSD 3-Clause "New" or "Revised" License.
+
 <!-- Links -->
 [main example]: https://github.com/pilisp/pilisp-cli/blob/main/example/pilisp_cli_main_example.dart
 [pilisp]: https://github.com/pilisp/pilisp

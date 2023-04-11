@@ -17,7 +17,7 @@ String readFile(String path) {
   return File(path).readAsStringSync();
 }
 
-Object? handleEval(PLEnv env, Iterable<String> evalArgs) {
+void handleEval(PLEnv env, Iterable<String> evalArgs) {
   for (final program in evalArgs) {
     final ret = PiLisp.loadString(program, env: env);
     if (ret != PLNil() && ret != null) {

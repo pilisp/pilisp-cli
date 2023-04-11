@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:pilisp/pilisp.dart';
 
+import 'cli_repl.dart';
 import 'pilisp_cli_impl.dart';
 
 /// Run a PiLisp REPL.
@@ -17,7 +18,7 @@ import 'pilisp_cli_impl.dart';
 /// This REPL is also aware of the [PLEnv.parent] value and the fact that PiLisp
 /// defines a `parent-to-string` function. It invokes that function on the
 /// parent value to change the REPL prompt when the parent is set.
-Future<void> repl(PLEnv env) async {
+Future<void> repl(PLEnv env, {bool isRich = false}) async {
   env.addBindingValue(PLSymbol('*3'), null);
   env.addBindingValue(PLSymbol('*2'), null);
   env.addBindingValue(PLSymbol('*1'), null);
@@ -26,79 +27,151 @@ Future<void> repl(PLEnv env) async {
   String multiLineProgram = '';
   bool showPrompt = true;
 
-  // TODO Handle interrupts.
-  while (true) {
-    if (showPrompt) {
+  if (isRich) {
+    var repl =
+        Repl(prompt: 'pl> ', continuation: '... ', validator: alwaysValid);
+    await for (var x in repl.runAsync()) {
+      if (x.trim().isEmpty) continue;
       final parent = env.parent;
       if (parent == null) {
-        stdout.write('pl> ');
+        repl.prompt = 'pl> ';
       } else {
         final printParent = env.getBindingValue(PLSymbol('parent-to-string'));
         if (printParent is PLFunction) {
-          stdout.write('${printParent.invoke(env, [parent])}> ');
+          repl.prompt = '${printParent.invoke(env, [parent])}> ';
         }
       }
-    }
-    final line = stdin.readLineSync(encoding: Encoding.getByName('utf-8')!);
-    if (line == null) break;
-    final programSource =
-        multiLineProgram.isEmpty ? line : '$multiLineProgram\n$line';
 
-    try {
-      final programData = PiLisp.readString(programSource);
-      // NB. Support loading files despite lack of dart:io in core PiLisp
-      // TODO Consider approach with marker object like PLAwait
-      if (programData == loadFileSym ||
-          (programData is PLList && programData[0] == loadFileSym)) {
-        if (programData is PLList) {
-          final fileName = programData.last.toString();
-          print('Loading $fileName');
-          loadFile(env, fileName, []);
-        } else {
-          // NB. Support pl> syntax without using that macro.
-          final expr = PiLisp.readString('[ $programSource ]');
-          if (expr is PLVector) {
-            final fileName = expr.last.toString();
+      try {
+        final programSource = x;
+        final programData = PiLisp.readString(programSource);
+        // NB. Support loading files despite lack of dart:io in core PiLisp
+        if (programData == loadFileSym ||
+            (programData is PLList && programData[0] == loadFileSym)) {
+          if (programData is PLList) {
+            final fileName = programData.last.toString();
             print('Loading $fileName');
             loadFile(env, fileName, []);
+          } else {
+            // NB. Support pl> syntax without using that macro.
+            final expr = PiLisp.readString('[ $programSource ]');
+            if (expr is PLVector) {
+              final fileName = expr.last.toString();
+              print('Loading $fileName');
+              loadFile(env, fileName, []);
+            }
+          }
+          continue;
+        }
+        final programUnawaitedResult =
+            PiLisp.loadString('(pl>\n$programSource\n)', env: env);
+        // final programUnawaitedResult = PiLisp.loadString(programSource, env: env);
+        Object? programResult;
+        if (programUnawaitedResult is PLAwait) {
+          programResult = await programUnawaitedResult.value;
+        } else {
+          programResult = programUnawaitedResult;
+        }
+        // NB: Make it stress-free to eval these REPL-specific bindings.
+        if (programData != PLSymbol('*3') &&
+            programData != PLSymbol('*2') &&
+            programData != PLSymbol('*1') &&
+            programData != PLSymbol('*e')) {
+          env.addBindingValue(
+              PLSymbol('*3'), env.getBindingValue(PLSymbol('*2')));
+          env.addBindingValue(
+              PLSymbol('*2'), env.getBindingValue(PLSymbol('*1')));
+          env.addBindingValue(PLSymbol('*1'), programResult);
+        }
+        stdout.writeln(PiLisp.printToString(programResult, env: env));
+        // Clean-up
+        showPrompt = true;
+        multiLineProgram = '';
+        // } on UnexpectedEndOfInput {
+        //   // In practice, these are async errors (see above) because the function is async.
+        //   showPrompt = false;
+        //   multiLineProgram += '\n$line';
+      } catch (e, st) {
+        env.addBindingValue(PLSymbol('*e'), e);
+        showPrompt = true;
+        multiLineProgram = '';
+        stderr.writeln(e);
+        stderr.writeln(st);
+      }
+    }
+  } else {
+    while (true) {
+      if (showPrompt) {
+        final parent = env.parent;
+        if (parent == null) {
+          stdout.write('pl> ');
+        } else {
+          final printParent = env.getBindingValue(PLSymbol('parent-to-string'));
+          if (printParent is PLFunction) {
+            stdout.write('${printParent.invoke(env, [parent])}> ');
           }
         }
-        continue;
       }
-      final programUnawaitedResult =
-          PiLisp.loadString('(pl>\n$programSource\n)', env: env);
-      // final programUnawaitedResult = PiLisp.loadString(programSource, env: env);
-      Object? programResult;
-      if (programUnawaitedResult is PLAwait) {
-        programResult = await programUnawaitedResult.value;
-      } else {
-        programResult = programUnawaitedResult;
+      final line = stdin.readLineSync(encoding: Encoding.getByName('utf-8')!);
+      if (line == null) break;
+      final programSource =
+          multiLineProgram.isEmpty ? line : '$multiLineProgram\n$line';
+
+      try {
+        final programData = PiLisp.readString(programSource);
+        // NB. Support loading files despite lack of dart:io in core PiLisp
+        if (programData == loadFileSym ||
+            (programData is PLList && programData[0] == loadFileSym)) {
+          if (programData is PLList) {
+            final fileName = programData.last.toString();
+            print('Loading $fileName');
+            loadFile(env, fileName, []);
+          } else {
+            // NB. Support pl> syntax without using that macro.
+            final expr = PiLisp.readString('[ $programSource ]');
+            if (expr is PLVector) {
+              final fileName = expr.last.toString();
+              print('Loading $fileName');
+              loadFile(env, fileName, []);
+            }
+          }
+          continue;
+        }
+        final programUnawaitedResult =
+            PiLisp.loadString('(pl>\n$programSource\n)', env: env);
+        // final programUnawaitedResult = PiLisp.loadString(programSource, env: env);
+        Object? programResult;
+        if (programUnawaitedResult is PLAwait) {
+          programResult = await programUnawaitedResult.value;
+        } else {
+          programResult = programUnawaitedResult;
+        }
+        // NB: Make it stress-free to eval these REPL-specific bindings.
+        if (programData != PLSymbol('*3') &&
+            programData != PLSymbol('*2') &&
+            programData != PLSymbol('*1') &&
+            programData != PLSymbol('*e')) {
+          env.addBindingValue(
+              PLSymbol('*3'), env.getBindingValue(PLSymbol('*2')));
+          env.addBindingValue(
+              PLSymbol('*2'), env.getBindingValue(PLSymbol('*1')));
+          env.addBindingValue(PLSymbol('*1'), programResult);
+        }
+        stdout.writeln(PiLisp.printToString(programResult, env: env));
+        // Clean-up
+        showPrompt = true;
+        multiLineProgram = '';
+      } on UnexpectedEndOfInput {
+        // In practice, these are async errors (see above) because the function is async.
+        showPrompt = false;
+        multiLineProgram += '\n$line';
+      } catch (e, st) {
+        env.addBindingValue(PLSymbol('*e'), e);
+        showPrompt = true;
+        multiLineProgram = '';
+        stderr.writeln(e);
+        stderr.writeln(st);
       }
-      // NB: Make it stress-free to eval these REPL-specific bindings.
-      if (programData != PLSymbol('*3') &&
-          programData != PLSymbol('*2') &&
-          programData != PLSymbol('*1') &&
-          programData != PLSymbol('*e')) {
-        env.addBindingValue(
-            PLSymbol('*3'), env.getBindingValue(PLSymbol('*2')));
-        env.addBindingValue(
-            PLSymbol('*2'), env.getBindingValue(PLSymbol('*1')));
-        env.addBindingValue(PLSymbol('*1'), programResult);
-      }
-      stdout.writeln(PiLisp.printToString(programResult, env: env));
-      // Clean-up
-      showPrompt = true;
-      multiLineProgram = '';
-    } on UnexpectedEndOfInput {
-      // In practice, these are async errors (see above) because the function is async.
-      showPrompt = false;
-      multiLineProgram += '\n$line';
-    } catch (e, st) {
-      env.addBindingValue(PLSymbol('*e'), e);
-      showPrompt = true;
-      multiLineProgram = '';
-      stderr.writeln(e);
-      stderr.writeln(st);
     }
   }
 }

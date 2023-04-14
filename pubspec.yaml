@@ -4,12 +4,13 @@ version: 1.0.0-alpha.7
 repository: https://github.com/pilisp/pilisp-cli
 
 environment:
-  sdk: '>=2.19.5 <3.0.0'
+  sdk: '>=2.18.0 <3.0.0'
 
 dependencies:
   async: ^2.11.0
+  chalkdart: ^2.0.9
   js: ^0.6.7
-  pilisp: ^1.0.0-alpha.7
+  pilisp: ^1.0.0-alpha.8
 
 dev_dependencies:
   lints: ^2.0.0

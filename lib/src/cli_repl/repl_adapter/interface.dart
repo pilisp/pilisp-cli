@@ -12,4 +12,8 @@ class ReplAdapter {
   Stream<String> runAsync() async* {}
 
   FutureOr<void> exit() {}
+
+  void clearBuffer() {}
+
+  void rewriteBuffer() {}
 }

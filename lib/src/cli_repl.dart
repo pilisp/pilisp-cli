@@ -2,9 +2,14 @@ library cli_repl;
 
 import 'dart:async';
 
+import 'package:pilisp/pilisp.dart';
+
 import 'cli_repl/repl_adapter.dart';
 
 class Repl {
+  /// The PiLisp environment for evaluation at this REPL
+  PLEnv env;
+
   /// Text displayed when prompting the user for a new statement.
   String prompt;
 
@@ -16,7 +21,8 @@ class Repl {
   StatementValidator validator;
 
   Repl(
-      {this.prompt = '',
+      {required this.env,
+      this.prompt = '',
       String? continuation,
       StatementValidator? validator,
       this.maxHistory = 50})
@@ -37,6 +43,12 @@ class Repl {
 
   /// Kills and cleans up the REPL.
   FutureOr<void> exit() => _adapter.exit();
+
+  Iterable<String> completionsFor(String prefix) => env.completionsFor(prefix);
+
+  void clearBuffer() => _adapter.clearBuffer();
+
+  void rewriteBuffer() => _adapter.rewriteBuffer();
 
   /// History is by line, not by statement.
   ///

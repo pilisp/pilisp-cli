@@ -8,8 +8,10 @@ import 'pilisp_cli_impl.dart';
 
 /// Run a PiLisp REPL.
 ///
-/// The REPL can handle multi-line programs, but otherwise provides no
-/// readline-like capabilities.
+/// Defaults to a REPL with readline-like editing capabilities and
+/// auto-completion based on all bindings within scope when `TAB` is pressed.
+///
+/// Both the rich and simple REPL modes can handle multi-line programs.
 ///
 /// Like Clojure's REPL, this REPL binds the symbols `*1`, `*2`, and `*3` with
 /// the last three evaluation results. If an exception has been thrown, it binds
@@ -18,7 +20,10 @@ import 'pilisp_cli_impl.dart';
 /// This REPL is also aware of the [PLEnv.parent] value and the fact that PiLisp
 /// defines a `parent-to-string` function. It invokes that function on the
 /// parent value to change the REPL prompt when the parent is set.
-Future<void> repl(PLEnv env, {bool isRich = false}) async {
+///
+/// Auto-completion is further enhanced to complete by term key names if the
+/// current parent is a map.
+Future<void> repl(PLEnv env, {bool isRich = true}) async {
   env.addBindingValue(PLSymbol('*3'), null);
   env.addBindingValue(PLSymbol('*2'), null);
   env.addBindingValue(PLSymbol('*1'), null);
@@ -28,20 +33,22 @@ Future<void> repl(PLEnv env, {bool isRich = false}) async {
   bool showPrompt = true;
 
   if (isRich) {
-    var repl =
-        Repl(prompt: 'pl> ', continuation: '... ', validator: alwaysValid);
-    await for (var x in repl.runAsync()) {
-      if (x.trim().isEmpty) continue;
-      final parent = env.parent;
-      if (parent == null) {
-        repl.prompt = 'pl> ';
-      } else {
-        final printParent = env.getBindingValue(PLSymbol('parent-to-string'));
-        if (printParent is PLFunction) {
-          repl.prompt = '${printParent.invoke(env, [parent])}> ';
-        }
+    String startingPrompt = 'pl> ';
+    if (env.parent != null) {
+      final parentToStringFn =
+          env.getBindingValue(PLSymbol('parent-to-string'));
+      if (parentToStringFn is PLFunction) {
+        startingPrompt = 'pl ${parentToStringFn.invoke(env, [env.parent])}> ';
       }
-
+    }
+    var repl = Repl(
+      prompt: startingPrompt,
+      continuation: '... ',
+      validator: alwaysValid,
+      env: env,
+    );
+    for (var x in repl.run()) {
+      if (x.trim().isEmpty) continue;
       try {
         final programSource = x;
         final programData = PiLisp.readString(programSource);
@@ -98,6 +105,15 @@ Future<void> repl(PLEnv env, {bool isRich = false}) async {
         stderr.writeln(e);
         stderr.writeln(st);
       }
+      final parent = env.parent;
+      if (parent == null) {
+        repl.prompt = 'pl> ';
+      } else {
+        final printParent = env.getBindingValue(PLSymbol('parent-to-string'));
+        if (printParent is PLFunction) {
+          repl.prompt = 'pl ${printParent.invoke(env, [parent])}> ';
+        }
+      }
     }
   } else {
     while (true) {
@@ -106,9 +122,10 @@ Future<void> repl(PLEnv env, {bool isRich = false}) async {
         if (parent == null) {
           stdout.write('pl> ');
         } else {
-          final printParent = env.getBindingValue(PLSymbol('parent-to-string'));
-          if (printParent is PLFunction) {
-            stdout.write('${printParent.invoke(env, [parent])}> ');
+          final parentToStringFn =
+              env.getBindingValue(PLSymbol('parent-to-string'));
+          if (parentToStringFn is PLFunction) {
+            stdout.write('pl ${parentToStringFn.invoke(env, [parent])}> ');
           }
         }
       }
@@ -197,7 +214,7 @@ Future<Object?> loadFile(PLEnv env, String path, Iterable<String> args) async {
 /// your command-line arguments.
 void cliMain(PLEnv env, List<String> mainArgs) async {
   if (mainArgs.isEmpty) {
-    await repl(env);
+    await repl(env, isRich: true);
   } else if (mainArgs.isNotEmpty) {
     final arg = mainArgs[0].trim();
     if (arg == '-h' || arg == '--help') {
@@ -206,8 +223,8 @@ void cliMain(PLEnv env, List<String> mainArgs) async {
     } else if (arg == '-e' || arg == '--eval') {
       final programs = mainArgs.skip(1);
       handleEval(env, programs);
-    } else if (arg == '-r' || arg == '--repl') {
-      repl(env);
+    } else if (arg == '-r' || arg == '--rich-repl') {
+      repl(env, isRich: false);
     } else if (arg == '-l' || arg == '--load') {
       if (mainArgs.length >= 2) {
         final programResult =

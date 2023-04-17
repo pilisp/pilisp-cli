@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:async/async.dart';
+import 'package:pilisp_cli/src/pilisp_cli_style.dart';
 
 import '../../cli_repl.dart';
 import 'codes.dart';
+
+final RegExp promptPattern = RegExp(r'^(pl[^>]*>\s*)+');
 
 class ReplAdapter {
   Repl repl;
@@ -217,6 +221,40 @@ class ReplAdapter {
           delete(1);
         }
         break;
+      case ctrlW:
+        int searchCursor = cursor - 1;
+        while (true) {
+          if (searchCursor == -1) {
+            break;
+          } else {
+            final codePoint = buffer[searchCursor];
+            if (codePoint == space ||
+                codePoint == c('.') ||
+                codePoint == c('-') ||
+                codePoint == c('_') ||
+                codePoint == c('{') ||
+                codePoint == c('}') ||
+                codePoint == c('(') ||
+                codePoint == c(')') ||
+                codePoint == c('[') ||
+                codePoint == c(']') ||
+                codePoint == c('"')) {
+              // Handle multiple ctrlW and swallow one space + next whole word
+              if (searchCursor != cursor - 1) {
+                break;
+              }
+            }
+          }
+          searchCursor--;
+        }
+        if (cursor == 0 && searchCursor == -1) {
+          break;
+        } else {
+          final numToDelete = cursor - searchCursor;
+          setCursor(searchCursor + 1);
+          delete(numToDelete - 1);
+        }
+        break;
       case killToEnd:
         yanked = delete(buffer.length - cursor);
         break;
@@ -240,13 +278,88 @@ class ReplAdapter {
       case backward:
         setCursor(cursor - 1);
         break;
+      case tab:
+        List<int> autoCompleteCodePoints = [];
+        int searchCursor = cursor - 1;
+        while (true) {
+          if (searchCursor == -1) {
+            break;
+          } else {
+            final codePoint = buffer[searchCursor];
+            if (codePoint == space ||
+                codePoint == c('{') ||
+                codePoint == c('}') ||
+                codePoint == c('(') ||
+                codePoint == c(')') ||
+                codePoint == c('[') ||
+                codePoint == c(']')) {
+              break;
+            } else {
+              autoCompleteCodePoints.add(codePoint);
+            }
+          }
+          searchCursor--;
+        }
+        if (autoCompleteCodePoints.isNotEmpty) {
+          final completionPrefix =
+              String.fromCharCodes(autoCompleteCodePoints.reversed);
+          final completions = repl.completionsFor(completionPrefix);
+          if (completions.isNotEmpty) {
+            if (completions.length == 1) {
+              // If one result, write its suffix directly into buffer.
+              clearToEnd();
+              var autoCompletion = completions.first;
+              if (completionPrefix.startsWith('.')) {
+                autoCompletion =
+                    autoCompletion.substring(completionPrefix.length - 1);
+              } else {
+                autoCompletion =
+                    autoCompletion.substring(completionPrefix.length);
+              }
+              for (final byte in utf8.encode(autoCompletion)) {
+                input(byte);
+              }
+            } else {
+              // Show autocomplete results
+              String sharedFurtherPrefix =
+                  calculateSharedPrefix(completionPrefix, completions);
+              if (sharedFurtherPrefix.isNotEmpty) {
+                for (final byte in utf8.encode(sharedFurtherPrefix)) {
+                  input(byte);
+                }
+              }
+
+              saveCursorPosition();
+              clearToEnd(); // clear from here to end, to remove previous autocomplete results
+              write('\n');
+              final prefixLength =
+                  completionPrefix.length + sharedFurtherPrefix.length;
+              for (final autoCompletion in completions) {
+                String s;
+                if (completionPrefix.startsWith('.')) {
+                  s = autoCompletion.substring(prefixLength - 1);
+                } else {
+                  s = autoCompletion.substring(prefixLength);
+                }
+                write(styleString(defaultDarkPalette, styleSubdued,
+                    completionPrefix + sharedFurtherPrefix));
+                write(s);
+                write(' ');
+              }
+              restoreCursorPosition();
+              // moveCursorUp(1);
+            }
+          }
+        }
+        break;
       case carriageReturn:
       case newLine:
         String contents = String.fromCharCodes(buffer);
         setCursor(buffer.length);
         input(char);
         if (repl.history.isEmpty || contents != repl.history.first) {
-          repl.history.insert(0, contents);
+          // repl.history.insert(0, contents);
+          repl.history.insert(0, contents.replaceFirst(promptPattern, ''));
         }
         while (repl.history.length > repl.maxHistory) {
           repl.history.removeLast();
@@ -260,6 +373,7 @@ class ReplAdapter {
         previousLines += '$contents\n';
         buffer.clear();
         cursor = 0;
+        clearToEnd(); // remove previous auto-complete results
         inContinuation = true;
         write(repl.continuation);
         break;
@@ -346,11 +460,97 @@ class ReplAdapter {
     write('$ansiEscape[$amt$dir');
   }
 
+  moveCursorUp(int amount) {
+    write('$ansiEscape[${amount}A');
+  }
+
+  moveCursorDown(int amount) {
+    write('$ansiEscape[${amount}B');
+  }
+
+  /// Clears screen from current cursor to end of screen.
+  clearToEnd() {
+    write('$ansiEscape[J');
+  }
+
+  saveCursorPosition() {
+    write('${ansiEscape}7');
+  }
+
+  restoreCursorPosition() {
+    write('${ansiEscape}8');
+  }
+
   clearScreen() {
     write('$ansiEscape[2J'); // clear
     write('$ansiEscape[H'); // return home
+    rewriteBuffer();
+  }
+
+  rewriteBuffer() {
     write(inContinuation ? repl.continuation : repl.prompt);
     write(String.fromCharCodes(buffer));
     moveCursor(cursor - buffer.length);
+  }
+
+  clearBuffer() {
+    // NB: This resets all of the stateful things in this class.
+    startReadStatement();
+  }
+}
+
+/// Return shared further prefix for the given strings, so that autocomplete
+/// is even more helpful.
+String calculateSharedPrefix(
+    String completionPrefix, Iterable<String> completions) {
+  try {
+    final initLength = completionPrefix.length;
+    if (completions.isNotEmpty) {
+      if (initLength <= completions.first.length) {
+        String workingPrefix = completions.first.substring(0, initLength);
+        for (final autoCompletion in completions.skip(1)) {
+          String s = autoCompletion.substring(initLength);
+          if (workingPrefix.length <= s.length) {
+            final sub = s.substring(0, workingPrefix.length);
+            final subUnits = sub.codeUnits;
+            final workingPrefixUnits = workingPrefix.codeUnits;
+            int? breakingIdx;
+            for (var i = 0; i < subUnits.length; i++) {
+              if (subUnits[i] != workingPrefixUnits[i]) {
+                breakingIdx = i;
+                break;
+              }
+            }
+            if (breakingIdx != null) {
+              workingPrefix = sub.substring(0, breakingIdx);
+            }
+          } else {
+            final swap = workingPrefix;
+            workingPrefix = s;
+            s = swap;
+            final sub = s.substring(0, workingPrefix.length);
+            final subUnits = sub.codeUnits;
+            final workingPrefixUnits = workingPrefix.codeUnits;
+            int? breakingIdx;
+            for (var i = 0; i < subUnits.length; i++) {
+              if (subUnits[i] != workingPrefixUnits[i]) {
+                breakingIdx = i;
+                break;
+              }
+            }
+            if (breakingIdx != null) {
+              workingPrefix = sub.substring(0, breakingIdx);
+            }
+          }
+        }
+        return workingPrefix;
+      } else {
+        return '';
+      }
+    } else {
+      return '';
+    }
+  } catch (_) {
+    return '';
   }
 }

@@ -1,3 +1,8 @@
+## v1.0.0-alpha.9
+
+* Richer cli_repl with more editing commands and TAB completion for in-scope PiLisp bindings
+* Repo changes to make pub.dev output more useful.
+
 ## v1.0.0-alpha.8
 
 * Initial inclusion of cli_repl for richer REPL experience

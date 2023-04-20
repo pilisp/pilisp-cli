@@ -206,8 +206,14 @@ class ReplAdapter {
   }
 
   List<int> yanked = [];
+  bool areCompletionResultsVisible = false;
 
   String? processCharacter(int char) {
+    if (char != tab) {
+      if (areCompletionResultsVisible) {
+        clearCompletionResults();
+      }
+    }
     switch (char) {
       case eof:
         if (cursor != buffer.length) delete(1);
@@ -307,7 +313,7 @@ class ReplAdapter {
           if (completions.isNotEmpty) {
             if (completions.length == 1) {
               // If one result, write its suffix directly into buffer.
-              clearToEnd();
+              clearCompletionResults();
               var autoCompletion = completions.first;
               if (completionPrefix.startsWith('.')) {
                 autoCompletion =
@@ -330,7 +336,9 @@ class ReplAdapter {
               }
 
               saveCursorPosition();
-              clearToEnd(); // clear from here to end, to remove previous autocomplete results
+              clearCompletionResults();
+              // moveCursorDown(1);
+              // clearToEnd(); // clear from here to end, to remove previous autocomplete results
               write('\n');
               final prefixLength =
                   completionPrefix.length + sharedFurtherPrefix.length;
@@ -346,9 +354,12 @@ class ReplAdapter {
                 write(s);
                 write(' ');
               }
+              areCompletionResultsVisible = true;
               restoreCursorPosition();
               // moveCursorUp(1);
             }
+          } else {
+            areCompletionResultsVisible = false;
           }
         }
         break;
@@ -416,6 +427,9 @@ class ReplAdapter {
   }
 
   bool handleAnsi(int char) {
+    if (areCompletionResultsVisible) {
+      clearCompletionResults();
+    }
     switch (char) {
       case arrowLeft:
         setCursor(cursor - 1);
@@ -466,6 +480,19 @@ class ReplAdapter {
 
   moveCursorDown(int amount) {
     write('$ansiEscape[${amount}B');
+  }
+
+  moveCursorToLineStart(int amount) {
+    write('\r');
+  }
+
+  clearCompletionResults() {
+    saveCursorPosition();
+    moveCursorDown(1);
+    moveCursorToLineStart(1);
+    clearToEnd();
+    restoreCursorPosition();
+    areCompletionResultsVisible = false;
   }
 
   /// Clears screen from current cursor to end of screen.

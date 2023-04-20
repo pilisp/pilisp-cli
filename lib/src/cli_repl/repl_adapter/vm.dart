@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:async/async.dart';
 import 'package:pilisp_cli/src/pilisp_cli_style.dart';
@@ -530,54 +531,33 @@ class ReplAdapter {
 /// is even more helpful.
 String calculateSharedPrefix(
     String completionPrefix, Iterable<String> completions) {
-  try {
-    final initLength = completionPrefix.length;
-    if (completions.isNotEmpty) {
-      if (initLength <= completions.first.length) {
-        String workingPrefix = completions.first.substring(0, initLength);
-        for (final autoCompletion in completions.skip(1)) {
-          String s = autoCompletion.substring(initLength);
-          if (workingPrefix.length <= s.length) {
-            final sub = s.substring(0, workingPrefix.length);
-            final subUnits = sub.codeUnits;
-            final workingPrefixUnits = workingPrefix.codeUnits;
-            int? breakingIdx;
-            for (var i = 0; i < subUnits.length; i++) {
-              if (subUnits[i] != workingPrefixUnits[i]) {
-                breakingIdx = i;
-                break;
-              }
-            }
-            if (breakingIdx != null) {
-              workingPrefix = sub.substring(0, breakingIdx);
-            }
-          } else {
-            final swap = workingPrefix;
-            workingPrefix = s;
-            s = swap;
-            final sub = s.substring(0, workingPrefix.length);
-            final subUnits = sub.codeUnits;
-            final workingPrefixUnits = workingPrefix.codeUnits;
-            int? breakingIdx;
-            for (var i = 0; i < subUnits.length; i++) {
-              if (subUnits[i] != workingPrefixUnits[i]) {
-                breakingIdx = i;
-                break;
-              }
-            }
-            if (breakingIdx != null) {
-              workingPrefix = sub.substring(0, breakingIdx);
-            }
+  if (completions.isEmpty) {
+    return '';
+  } else {
+    final prefixLength = completionPrefix.length;
+    String sharedFurtherPrefix = completions.first.substring(prefixLength);
+    for (final completion in completions.skip(1)) {
+      if (sharedFurtherPrefix.isEmpty) {
+        return '';
+      } else {
+        final restOfCompletion = completion.substring(prefixLength);
+        final restOfCompletionCodeUnits = restOfCompletion.codeUnits;
+        final sharedFurtherPrefixCodeUnits = sharedFurtherPrefix.codeUnits;
+        List<int> newSharedFurtherPrefix = [];
+        for (int i = 0;
+            i <
+                min(restOfCompletionCodeUnits.length,
+                    sharedFurtherPrefixCodeUnits.length);
+            i++) {
+          final sharCu = sharedFurtherPrefixCodeUnits[i];
+          final restCu = restOfCompletionCodeUnits[i];
+          if (sharCu == restCu) {
+            newSharedFurtherPrefix.add(restCu);
           }
         }
-        return workingPrefix;
-      } else {
-        return '';
+        sharedFurtherPrefix = String.fromCharCodes(newSharedFurtherPrefix);
       }
-    } else {
-      return '';
     }
-  } catch (_) {
-    return '';
+    return sharedFurtherPrefix;
   }
 }

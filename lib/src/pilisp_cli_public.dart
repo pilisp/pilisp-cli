@@ -360,15 +360,20 @@ class EvalCommand extends Command {
 /// A proxy for your [main] function, if you want this package to handle all of
 /// your command-line arguments.
 void cliMain(PLEnv env, List<String> mainArgs) async {
+  final exeName = 'pl';
+  final exeDesc = 'Run a PiLisp REPL, or try the subcommands for more options.';
   PiLisp.loadString('''
 (def *command-line-args* '[${mainArgs.map((e) => '"${e.replaceAll('"', '\\"')}"').join(' ')}])
 ''', env: env);
-  CommandRunner(
-      'pl', 'Run a PiLisp REPL, or try the subcommands for more options.')
+  List<String> effectiveArgs = List<String>.from(mainArgs);
+  if (effectiveArgs.isEmpty || effectiveArgs.first.startsWith('-')) {
+    effectiveArgs.insert(0, 'repl');
+  }
+  CommandRunner(exeName, exeDesc)
     ..addCommand(ReplCommand(env))
     ..addCommand(LoadCommand(env))
     ..addCommand(EvalCommand(env))
-    ..run(mainArgs).catchError((error) {
+    ..run(effectiveArgs).catchError((error) {
       if (error is! UsageException) throw error;
       stderr.writeln(error);
       exit(64);

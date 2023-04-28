@@ -1,3 +1,7 @@
+## v1.0.0-alpha.12
+
+* When no command provided, start the REPL.
+
 ## v1.0.0-alpha.11
 
 * Completely revamped CLI arguments, using command-based syntax now. Run `help` for top-level and `help <command>` for command-specific help.

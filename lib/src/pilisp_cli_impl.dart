@@ -18,13 +18,22 @@ String readFile(String path) {
 }
 
 void handleEval(PLEnv env, Iterable<String> evalArgs,
-    {bool shouldPrint = false}) {
+    {bool shouldPrint = false}) async {
   final l = evalArgs.toList();
   for (var i = 0; i < l.length; i++) {
     final program = l[i];
     final ret = PiLisp.loadString(program, env: env);
-    if (i == l.length - 1 && ret != PLNil() && ret != null && shouldPrint) {
-      print(PiLisp.printToString(ret));
+    Object? effectiveRet;
+    if (ret is PLAwait) {
+      effectiveRet = await ret.value;
+    } else {
+      effectiveRet = ret;
+    }
+    if (i == l.length - 1 &&
+        effectiveRet != PLNil() &&
+        effectiveRet != null &&
+        shouldPrint) {
+      print(PiLisp.printToString(effectiveRet));
     }
   }
 }

@@ -60,14 +60,14 @@ Future<void> repl(PLEnv env, {bool isRich = true}) async {
           if (programData is PLList) {
             final fileName = programData.last.toString();
             print('Loading $fileName');
-            loadFile(env, fileName);
+            await loadFile(env, fileName);
           } else {
             // NB. Support pl> syntax without using that macro.
             final expr = PiLisp.readString('[ $programSource ]');
             if (expr is PLVector) {
               final fileName = expr.last.toString();
               print('Loading $fileName');
-              loadFile(env, fileName);
+              await loadFile(env, fileName);
             }
           }
           continue;

@@ -1,3 +1,7 @@
+## v1.0.0-alpha.13
+
+* Ensure that `PLAwait` values are Dart `await`ed in the load and eval command paths.
+
 ## v1.0.0-alpha.12
 
 * When no command provided, start the REPL.

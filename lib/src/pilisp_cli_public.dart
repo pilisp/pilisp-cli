@@ -242,12 +242,19 @@ class ReplCommand extends Command {
       ..addMultiOption('eval',
           abbr: 'e',
           help:
-              'Eval expressions in the PiLisp environment after files passed via -l/--load, but before starting the REPL.');
+              'Eval expressions in the PiLisp environment after files passed via -l/--load, but before starting the REPL.')
+      ..addFlag('env-vars',
+          help:
+              'If true, create env/ bindings for all system environment variables via Platform.environment',
+          defaultsTo: false);
   }
 
   @override
   FutureOr? run() {
     final ar = argResults!;
+    if (ar['env-vars']) {
+      bindingsForEnvironment(env);
+    }
     final filesToLoad = ar['load'];
     if (filesToLoad is Iterable<String>) {
       for (final file in filesToLoad) {
@@ -282,12 +289,19 @@ class LoadCommand extends Command {
               'Eval expressions in the PiLisp environment after loading the file(s).')
       // Feature: URIs
       ..addMultiOption('file',
-          abbr: 'f', help: 'File with PiLisp code to load.');
+          abbr: 'f', help: 'File with PiLisp code to load.')
+      ..addFlag('env-vars',
+          help:
+              'If true, create env/ bindings for all system environment variables via Platform.environment',
+          defaultsTo: false);
   }
 
   @override
   FutureOr? run() {
     final ar = argResults!;
+    if (ar['env-vars']) {
+      bindingsForEnvironment(env);
+    }
     final beforeExprs = ar['evalBefore'];
     if (beforeExprs is Iterable<String>) {
       handleEval(env, beforeExprs, shouldPrint: false);
@@ -316,15 +330,23 @@ class EvalCommand extends Command {
   final PLEnv env;
 
   EvalCommand(this.env) {
-    argParser.addMultiOption('load',
-        abbr: 'l',
-        help:
-            'Load files into the PiLisp environment before evaluating other arguments.');
+    argParser
+      ..addMultiOption('load',
+          abbr: 'l',
+          help:
+              'Load files into the PiLisp environment before evaluating other arguments.')
+      ..addFlag('env-vars',
+          help:
+              'If true, create env/ bindings for all system environment variables via Platform.environment',
+          defaultsTo: false);
   }
 
   @override
   FutureOr? run() {
     final ar = argResults!;
+    if (ar['env-vars']) {
+      bindingsForEnvironment(env);
+    }
     final filesToLoad = ar['load'];
     if (filesToLoad is Iterable<String>) {
       for (final file in filesToLoad) {

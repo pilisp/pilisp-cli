@@ -7,5 +7,5 @@ dart test
 echo '[TEST] Running examples...'
 dart run example/pilisp_cli_example.dart
 dart run example/pilisp_cli_load_example.dart
-dart run example/pilisp_cli_main_example.dart -e ':main-example'
+dart run example/pilisp_cli_main_example.dart eval ':main-example'
 # dart run example/pilisp_cli_repl_example.dart  # NB. Skipping because this one is interactive

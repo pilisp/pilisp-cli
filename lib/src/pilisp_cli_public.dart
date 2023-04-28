@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/command_runner.dart';
 import 'package:pilisp/pilisp.dart';
 
 import 'cli_repl.dart';
@@ -58,14 +60,14 @@ Future<void> repl(PLEnv env, {bool isRich = true}) async {
           if (programData is PLList) {
             final fileName = programData.last.toString();
             print('Loading $fileName');
-            loadFile(env, fileName, []);
+            loadFile(env, fileName);
           } else {
             // NB. Support pl> syntax without using that macro.
             final expr = PiLisp.readString('[ $programSource ]');
             if (expr is PLVector) {
               final fileName = expr.last.toString();
               print('Loading $fileName');
-              loadFile(env, fileName, []);
+              loadFile(env, fileName);
             }
           }
           continue;
@@ -142,14 +144,14 @@ Future<void> repl(PLEnv env, {bool isRich = true}) async {
           if (programData is PLList) {
             final fileName = programData.last.toString();
             print('Loading $fileName');
-            loadFile(env, fileName, []);
+            loadFile(env, fileName);
           } else {
             // NB. Support pl> syntax without using that macro.
             final expr = PiLisp.readString('[ $programSource ]');
             if (expr is PLVector) {
               final fileName = expr.last.toString();
               print('Loading $fileName');
-              loadFile(env, fileName, []);
+              loadFile(env, fileName);
             }
           }
           continue;
@@ -195,11 +197,8 @@ Future<void> repl(PLEnv env, {bool isRich = true}) async {
 
 /// Load (read + eval) the file at the given [path], returning the final value
 /// evaluated in the program.
-Future<Object?> loadFile(PLEnv env, String path, Iterable<String> args) async {
+Future<Object?> loadFile(PLEnv env, String path) async {
   final programSource = readFile(path);
-  PiLisp.loadString('''
-(def *command-line-args* '[${args.map((e) => '"${e.replaceAll('"', '\\"')}"').join(' ')}])
-''', env: env);
   final programUnawaitedResult = PiLisp.loadString(programSource, env: env);
   Object? programResult;
   if (programUnawaitedResult is PLAwait) {
@@ -210,39 +209,146 @@ Future<Object?> loadFile(PLEnv env, String path, Iterable<String> args) async {
   return programResult;
 }
 
+/// Given a [PLEnv] instance, bind the string values of operating system
+/// environment variables to symbols with the same name with `env/`
+/// prefixed.
+PLEnv bindingsForEnvironment(PLEnv env) {
+  final platformEnv = Platform.environment;
+  for (final envVar in platformEnv.keys) {
+    env.addBindingValue(PLSymbol('env/$envVar'), platformEnv[envVar]);
+  }
+  return env;
+}
+
+class ReplCommand extends Command {
+  @override
+  final name = 'repl';
+  @override
+  final description = 'Start a PiLisp REPL.';
+
+  final PLEnv env;
+
+  ReplCommand(this.env) {
+    argParser
+      ..addFlag('rich',
+          abbr: 'r',
+          defaultsTo: true,
+          help:
+              'Rich REPL with line editing, ANSI colors, and auto-completion.')
+      ..addMultiOption('load',
+          abbr: 'l',
+          help:
+              'Load files into the PiLisp environment before starting the REPL.')
+      ..addMultiOption('eval',
+          abbr: 'e',
+          help:
+              'Eval expressions in the PiLisp environment after files passed via -l/--load, but before starting the REPL.');
+  }
+
+  @override
+  FutureOr? run() {
+    final ar = argResults!;
+    final filesToLoad = ar['load'];
+    if (filesToLoad is Iterable<String>) {
+      for (final file in filesToLoad) {
+        loadFile(env, file);
+      }
+    }
+    final exprsToEval = ar['eval'];
+    if (exprsToEval is Iterable<String>) {
+      handleEval(env, exprsToEval, shouldPrint: false);
+    }
+    repl(env, isRich: argResults!['rich']);
+  }
+}
+
+class LoadCommand extends Command {
+  @override
+  final name = 'load';
+  @override
+  final description = 'Load PiLisp code saved in files.';
+
+  final PLEnv env;
+
+  LoadCommand(this.env) {
+    argParser
+      ..addMultiOption('evalBefore',
+          abbr: 'b',
+          help:
+              'Eval expressions in the PiLisp environment before loading the file(s).')
+      ..addMultiOption('evalAfter',
+          abbr: 'a',
+          help:
+              'Eval expressions in the PiLisp environment after loading the file(s).')
+      // Feature: URIs
+      ..addMultiOption('file',
+          abbr: 'f', help: 'File with PiLisp code to load.');
+  }
+
+  @override
+  FutureOr? run() {
+    final ar = argResults!;
+    final beforeExprs = ar['evalBefore'];
+    if (beforeExprs is Iterable<String>) {
+      handleEval(env, beforeExprs, shouldPrint: false);
+    }
+
+    final files = ar['file'];
+    if (files is Iterable<String>) {
+      for (final file in files) {
+        loadFile(env, file);
+      }
+    }
+
+    final afterExprs = ar['evalBefore'];
+    if (afterExprs is Iterable<String>) {
+      handleEval(env, afterExprs, shouldPrint: true);
+    }
+  }
+}
+
+class EvalCommand extends Command {
+  @override
+  final name = 'eval';
+  @override
+  final description = 'Evaluate PiLisp code passed as arguments.';
+
+  final PLEnv env;
+
+  EvalCommand(this.env) {
+    argParser.addMultiOption('load',
+        abbr: 'l',
+        help:
+            'Load files into the PiLisp environment before evaluating other arguments.');
+  }
+
+  @override
+  FutureOr? run() {
+    final ar = argResults!;
+    final filesToLoad = ar['load'];
+    if (filesToLoad is Iterable<String>) {
+      for (final file in filesToLoad) {
+        loadFile(env, file);
+      }
+    }
+    handleEval(env, ar.rest, shouldPrint: true);
+  }
+}
+
 /// A proxy for your [main] function, if you want this package to handle all of
 /// your command-line arguments.
 void cliMain(PLEnv env, List<String> mainArgs) async {
-  if (mainArgs.isEmpty) {
-    await repl(env, isRich: true);
-  } else if (mainArgs.isNotEmpty) {
-    final arg = mainArgs[0].trim();
-    if (arg == '-h' || arg == '--help') {
-      print(usage);
-      exit(0);
-    } else if (arg == '-e' || arg == '--eval') {
-      final programs = mainArgs.skip(1);
-      handleEval(env, programs);
-    } else if (arg == '-r' || arg == '--rich-repl') {
-      repl(env, isRich: false);
-    } else if (arg == '-l' || arg == '--load') {
-      if (mainArgs.length >= 2) {
-        final programResult =
-            await loadFile(env, mainArgs[1], mainArgs.skip(2));
-        stdout.writeln(PiLisp.printToString(programResult, env: env));
-        await env.shutDown();
-        exit(0);
-      } else {
-        print(usage);
-        exit(1);
-      }
-    } else {
-      // Assume single file name to load, no further args
-      await loadFile(env, mainArgs[0], []);
-    }
-    exit(0);
-  } else {
-    print(usage);
-    exit(1);
-  }
+  PiLisp.loadString('''
+(def *command-line-args* '[${mainArgs.map((e) => '"${e.replaceAll('"', '\\"')}"').join(' ')}])
+''', env: env);
+  CommandRunner(
+      'pl', 'Run a PiLisp REPL, or try the subcommands for more options.')
+    ..addCommand(ReplCommand(env))
+    ..addCommand(LoadCommand(env))
+    ..addCommand(EvalCommand(env))
+    ..run(mainArgs).catchError((error) {
+      if (error is! UsageException) throw error;
+      stderr.writeln(error);
+      exit(64);
+    });
 }

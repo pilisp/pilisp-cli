@@ -17,10 +17,13 @@ String readFile(String path) {
   return File(path).readAsStringSync();
 }
 
-void handleEval(PLEnv env, Iterable<String> evalArgs) {
-  for (final program in evalArgs) {
+void handleEval(PLEnv env, Iterable<String> evalArgs,
+    {bool shouldPrint = false}) {
+  final l = evalArgs.toList();
+  for (var i = 0; i < l.length; i++) {
+    final program = l[i];
     final ret = PiLisp.loadString(program, env: env);
-    if (ret != PLNil() && ret != null) {
+    if (i == l.length - 1 && ret != PLNil() && ret != null && shouldPrint) {
       print(PiLisp.printToString(ret));
     }
   }

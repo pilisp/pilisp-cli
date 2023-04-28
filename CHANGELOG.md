@@ -1,3 +1,8 @@
+## v1.0.0-alpha.11
+
+* Completely revamped CLI arguments, using command-based syntax now. Run `help` for top-level and `help <command>` for command-specific help.
+* If `--env-vars` provided to any of the sub-commands, PiLisp bindings are created for every entry in `Platform.environment`, prefixed with `env/` (e.g., `env/HOME`).
+
 ## v1.0.0-alpha.10
 
 * Improved auto-complete

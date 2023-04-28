@@ -4,12 +4,12 @@ Designed originally for use with the [pilisp] and [pilisp-native] projects.
 
 ## Features
 
-* Convenient `cliMain` function that expects a `PLEnv` instance and your program's `main` arguments and provides:
-   * PiLisp REPL if no arguments passed
-   * `-h` / `--help` to print usage
-   * `-l` / `--load` to load and interpret a file of PiLisp code
-      * Binds the symbol `*command-line-args*` to the subsequent command-line arguments passed in.
-   * `-r` / `--repl` to run a PiLisp REPL
+* A `cliMain` function that is designed as a proxy for your program's `main` function:
+   * Expects a `PLEnv` instance and your program's `main` arguments
+   * Provides commands for:
+      * Running a PiLisp REPL
+      * Evaluating one-off expressions
+      * Loading PiLisp files
 * Public `repl` and `loadFile` functions for starting a PiLisp REPL and loading a PiLisp file, respectively.
 
 ## Getting started
@@ -93,9 +93,8 @@ pl>
 ```
 
 ```shell
-$ dart run example/pilisp_cli_main_example.dart -l example/example.pil a b c
-You passed in 3 command-line arguments: a, b, c
-nil
+$ dart run example/pilisp_cli_main_example.dart load --file example/example.pil a b c
+You passed in 6 command-line arguments: load, --file, example/example.pil, a, b, c
 ```
 
 ## Additional information

@@ -196,7 +196,6 @@ class EvalCommand extends Command {
 
 final dartCompileCoreSourceTemplate = r'''
 import 'package:pilisp/pilisp.dart';
-import 'package:pilisp_cli/pilisp_cli.dart' as pcli;
 
 final env = piLispEnv.loadString(r"""
 {{PROGRAM_SOURCE}}
@@ -244,7 +243,6 @@ class CompileExeCommand extends Command {
       // dart compile exe -o pl ./bin/cli.dart
       Process.run('dart',
           ['compile', 'exe', '-o', 'build/pl-script-exe', dartFile.path]);
-      // TODO ensure build/ exists, write build/pilisp_compile_source.dart, use `dart compile` in child process
     }
   }
 }

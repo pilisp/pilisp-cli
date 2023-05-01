@@ -8,3 +8,9 @@ pubspec.lock
 
 # API docs
 doc/api/
+
+# Build output
+build/
+
+# macOS
+.DS_Store

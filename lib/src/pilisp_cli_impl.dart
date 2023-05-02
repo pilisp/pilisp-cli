@@ -220,10 +220,13 @@ class CompileExeCommand extends Command {
   CompileExeCommand() {
     argParser
       ..addOption('output',
-          abbr: 'o', help: 'Write the executable to the provided file name.')
+          abbr: 'o',
+          help: 'Write the executable to the provided file name.',
+          defaultsTo: 'build/pl-script-exe')
       ..addOption('verbosity',
           help: 'Set the verbosity of the underlying Dart compilation.',
-          allowed: ['all', 'error', 'info', 'warning']);
+          allowed: ['all', 'error', 'info', 'warning'],
+          defaultsTo: 'all');
   }
 
   @override
@@ -234,6 +237,8 @@ class CompileExeCommand extends Command {
       stderr.writeln('You must provide a file to compile.');
       exit(64);
     } else {
+      final outputFilePath = ar['output'];
+      final verbosity = ar['verbosity'];
       final pilispFilePath = rest[0];
       final programSource = await File(pilispFilePath).readAsString();
       final dartFile = await File('build/pilisp_compile_source.dart')
@@ -241,8 +246,15 @@ class CompileExeCommand extends Command {
       dartFile.writeAsString(dartCompileCoreSourceTemplate.replaceFirst(
           '{{PROGRAM_SOURCE}}', programSource));
       // dart compile exe -o pl ./bin/cli.dart
-      Process.run('dart',
-          ['compile', 'exe', '-o', 'build/pl-script-exe', dartFile.path]);
+      Process.run('dart', [
+        'compile',
+        'exe',
+        '-o',
+        outputFilePath,
+        '--verbosity',
+        verbosity,
+        dartFile.path,
+      ]);
     }
   }
 }

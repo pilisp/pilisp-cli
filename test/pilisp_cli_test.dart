@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:pilisp/pilisp.dart';
 import 'package:pilisp_cli/pilisp_cli.dart';
 import 'package:pilisp_cli/src/cli_repl/repl_adapter/vm.dart';

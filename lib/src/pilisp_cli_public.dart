@@ -211,7 +211,7 @@ Future<Object?> loadFile(PLEnv env, String path) async {
 
 /// A proxy for your [main] function, if you want this package to handle all of
 /// your command-line arguments.
-void cliMain(PLEnv env, List<String> mainArgs) async {
+Future<void> cliMain(PLEnv env, List<String> mainArgs) async {
   final exeName = 'pl';
   final exeDesc = 'Run a PiLisp REPL, or try the subcommands for more options.';
   PiLisp.loadString('''
@@ -221,14 +221,14 @@ void cliMain(PLEnv env, List<String> mainArgs) async {
   if (effectiveArgs.isEmpty || effectiveArgs.first.startsWith('-')) {
     effectiveArgs.insert(0, 'repl');
   }
-  CommandRunner(exeName, exeDesc)
+  final runner = CommandRunner(exeName, exeDesc)
     ..addCommand(ReplCommand(env))
     ..addCommand(LoadCommand(env))
     ..addCommand(EvalCommand(env))
-    ..addCommand(CompileCommand())
-    ..run(effectiveArgs).catchError((error) {
-      if (error is! UsageException) throw error;
-      stderr.writeln(error);
-      exit(64);
-    });
+    ..addCommand(CompileCommand());
+  await runner.run(effectiveArgs).catchError((error) {
+    if (error is! UsageException) throw error;
+    stderr.writeln(error);
+    exit(64);
+  });
 }

@@ -94,7 +94,7 @@ pl>
 
 ```shell
 $ dart run example/pilisp_cli_main_example.dart load --file example/example.pil a b c
-You passed in 6 command-line arguments: load, --file, example/example.pil, a, b, c
+Scripted, you passed in 6 command-line arguments: load, --file, example/example.pil, a, b, c
 ```
 
 ## Additional information

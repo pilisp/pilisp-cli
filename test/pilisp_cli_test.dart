@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:pilisp/pilisp.dart';
 import 'package:pilisp_cli/pilisp_cli.dart';
 import 'package:pilisp_cli/src/cli_repl/repl_adapter/vm.dart';
@@ -6,6 +8,41 @@ import 'package:test/test.dart';
 
 void main() {
   group('/ pilisp_cli', () {
+    group('/ cliMain', () {
+      group('/ load command', () {
+        test('/ *command-line-args* includes all arguments', () {
+          expect(
+              () => cliMain(piLispEnv,
+                  ['load', '--file', 'test/pilisp_cli_load_test.pil']),
+              prints('3\n'));
+        });
+        test('/ --no-print does not print final value', () {
+          expect(
+              () => cliMain(piLispEnv, [
+                    'load',
+                    '--no-print',
+                    '--file',
+                    'test/pilisp_cli_load_test.pil'
+                  ]),
+              prints(''));
+        });
+      });
+      group('/ eval command', () {
+        test('/ evaluates and prints final expression', () {
+          expect(
+              () => cliMain(piLispEnv,
+                  ['eval', '(def test-wow 42)', '(reduce + (range 10))']),
+              prints('45\n'));
+          expect(PiLisp.loadString('test-wow'), 42);
+        });
+        test('/ --no-print does not print final value', () {
+          expect(
+              () => cliMain(
+                  piLispEnv, ['eval', '--no-print', '(reduce + (range 10))']),
+              prints(''));
+        });
+      });
+    });
     group('/ completions', () {
       test('shared prefixes are filled in', () {
         expect(

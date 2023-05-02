@@ -1,3 +1,10 @@
+## v1.0.0-alpha.14
+
+* Adds `compile` command.
+* For `load` command, changes `--evalBefore` and `--evalAfter` to `--eval-before` and `--eval-after` respectively.
+* Adds `--[no-]print` flag, to control whether `eval` and `load` commands print their final expressions.
+* Corrects some async/await call sites.
+
 ## v1.0.0-alpha.13
 
 * Ensure that `PLAwait` values are Dart `await`ed in the load and eval command paths.

@@ -21,9 +21,10 @@ String readFile(String path) {
   return File(path).readAsStringSync();
 }
 
-void handleEval(PLEnv env, Iterable<String> evalArgs,
+Future<Object?> handleEval(PLEnv env, Iterable<String> evalArgs,
     {bool shouldPrint = false}) async {
   final l = evalArgs.toList();
+  Object? finalRet;
   for (var i = 0; i < l.length; i++) {
     final program = l[i];
     final ret = PiLisp.loadString(program, env: env);
@@ -39,7 +40,9 @@ void handleEval(PLEnv env, Iterable<String> evalArgs,
         shouldPrint) {
       print(PiLisp.printToString(effectiveRet));
     }
+    finalRet = effectiveRet;
   }
+  return finalRet;
 }
 
 /// Given a [PLEnv] instance, bind the string values of operating system
@@ -112,11 +115,11 @@ class LoadCommand extends Command {
 
   LoadCommand(this.env) {
     argParser
-      ..addMultiOption('evalBefore',
+      ..addMultiOption('eval-before',
           abbr: 'b',
           help:
               'Eval expressions in the PiLisp environment before loading the file(s).')
-      ..addMultiOption('evalAfter',
+      ..addMultiOption('eval-after',
           abbr: 'a',
           help:
               'Eval expressions in the PiLisp environment after loading the file(s).')
@@ -126,32 +129,50 @@ class LoadCommand extends Command {
       ..addFlag('env-vars',
           help:
               'If true, create env/ bindings for all system environment variables via Platform.environment',
-          defaultsTo: false);
+          defaultsTo: false)
+      ..addFlag('print',
+          abbr: 'p',
+          help:
+              'If true, prints the last thing evaluated (whether the last file loaded, or --eval-after expression).',
+          defaultsTo: true);
   }
 
   @override
-  FutureOr? run() {
+  FutureOr? run() async {
+    final ar = argResults!;
+    final files = ar['file'];
+    if (files is Iterable<String> && files.isEmpty) {
+      stderr.writeln(
+          'You must supply at least one --file argument to the load command.');
+      exit(64);
+    }
+
     env.isScript = true;
 
-    final ar = argResults!;
     if (ar['env-vars']) {
       bindingsForEnvironment(env);
     }
-    final beforeExprs = ar['evalBefore'];
+    final beforeExprs = ar['eval-before'];
     if (beforeExprs is Iterable<String>) {
-      handleEval(env, beforeExprs, shouldPrint: false);
+      await handleEval(env, beforeExprs, shouldPrint: false);
     }
 
-    final files = ar['file'];
+    Object? finalLoadRet;
     if (files is Iterable<String>) {
       for (final file in files) {
-        loadFile(env, file);
+        finalLoadRet = await loadFile(env, file);
       }
     }
 
-    final afterExprs = ar['evalBefore'];
+    final afterExprs = ar['eval-after'];
+    Object? finalEvalRet;
     if (afterExprs is Iterable<String>) {
-      handleEval(env, afterExprs, shouldPrint: true);
+      finalEvalRet = await handleEval(env, afterExprs, shouldPrint: false);
+    }
+
+    final ret = finalLoadRet ?? finalEvalRet;
+    if (ret != null && ret != PLNil() && ar['print']) {
+      print(PiLisp.printToString(ret));
     }
   }
 }
@@ -173,7 +194,12 @@ class EvalCommand extends Command {
       ..addFlag('env-vars',
           help:
               'If true, create env/ bindings for all system environment variables via Platform.environment',
-          defaultsTo: false);
+          defaultsTo: false)
+      ..addFlag('print',
+          abbr: 'p',
+          help:
+              'If true, prints the last thing evaluated (whether the last file loaded, or --eval-after expression).',
+          defaultsTo: true);
   }
 
   @override
@@ -190,7 +216,7 @@ class EvalCommand extends Command {
         loadFile(env, file);
       }
     }
-    handleEval(env, ar.rest, shouldPrint: true);
+    handleEval(env, ar.rest, shouldPrint: ar['print']);
   }
 }
 

@@ -247,8 +247,14 @@ class CompileExeCommand extends Command {
     argParser
       ..addOption('output',
           abbr: 'o',
-          help: 'Write the executable to the provided file name.',
+          help: 'Write the compiled executable to the provided file name.',
           defaultsTo: 'build/pl-script-exe')
+      ..addFlag('source-only',
+          abbr: 's',
+          negatable: false,
+          defaultsTo: false,
+          help:
+              'Only write the Dart source wrapper for compiling the PiLisp program, do not immediately compile it.')
       ..addOption('verbosity',
           help: 'Set the verbosity of the underlying Dart compilation.',
           allowed: ['all', 'error', 'info', 'warning'],
@@ -272,15 +278,19 @@ class CompileExeCommand extends Command {
       dartFile.writeAsString(dartCompileCoreSourceTemplate.replaceFirst(
           '{{PROGRAM_SOURCE}}', programSource));
       // dart compile exe -o pl ./bin/cli.dart
-      Process.run('dart', [
-        'compile',
-        'exe',
-        '-o',
-        outputFilePath,
-        '--verbosity',
-        verbosity,
-        dartFile.path,
-      ]);
+      if (ar['source-only']) {
+        print('Finished writing Dart wrapper to ${dartFile.path}');
+      } else {
+        Process.run('dart', [
+          'compile',
+          'exe',
+          '-o',
+          outputFilePath,
+          '--verbosity',
+          verbosity,
+          dartFile.path,
+        ]);
+      }
     }
   }
 }

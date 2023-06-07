@@ -221,9 +221,9 @@ class EvalCommand extends Command {
 }
 
 final dartCompileCoreSourceTemplate = r'''
-import 'package:pilisp/pilisp.dart';
+{{PILISP_IMPORTS}}
 
-final env = piLispEnv.loadString(r"""
+final env = {{PILISP_ENV}}.loadString(r"""
 {{PROGRAM_SOURCE}}
 """);
 
@@ -243,8 +243,18 @@ class CompileExeCommand extends Command {
   final description =
       'Create a self-contained executable from a PiLisp program.';
 
+  static final Map<String, String> languageEnvironments = {
+    'core': 'piLispEnv',
+    'native': 'piLispNativeEnv'
+  };
+
   CompileExeCommand() {
     argParser
+      ..addOption('language-target',
+          abbr: 't',
+          help: 'PiLisp target environment to use for runtime.',
+          allowed: ['core', 'native'],
+          defaultsTo: 'core')
       ..addOption('output',
           abbr: 'o',
           help: 'Write the compiled executable to the provided file name.',
@@ -269,19 +279,24 @@ class CompileExeCommand extends Command {
       stderr.writeln('You must provide a file to compile.');
       exit(64);
     } else {
+      final pilispEnvName = ar['language-target'];
       final outputFilePath = ar['output'];
       final verbosity = ar['verbosity'];
       final pilispFilePath = rest[0];
       final programSource = await File(pilispFilePath).readAsString();
       final dartFile = await File('build/pilisp_compile_source.dart')
           .create(recursive: true);
-      dartFile.writeAsString(dartCompileCoreSourceTemplate.replaceFirst(
-          '{{PROGRAM_SOURCE}}', programSource));
-      // dart compile exe -o pl ./bin/cli.dart
+      dartFile.writeAsString(dartCompileCoreSourceTemplate
+          .replaceFirst(
+              '{{PILISP_IMPORTS}}', """import 'package:pilisp/pilisp.dart';
+              ${pilispEnvName == 'native' ? "import 'package:pilisp_native/pilisp_native.dart';" : 'package:pilisp/pilisp.dart'}""")
+          .replaceFirst('{{PROGRAM_SOURCE}}', programSource)
+          .replaceFirst(
+              '{{PILISP_ENV}}', languageEnvironments[pilispEnvName]!));
       if (ar['source-only']) {
         print('Finished writing Dart wrapper to ${dartFile.path}');
       } else {
-        Process.run('dart', [
+        final result = await Process.run('dart', [
           'compile',
           'exe',
           '-o',
@@ -290,6 +305,12 @@ class CompileExeCommand extends Command {
           verbosity,
           dartFile.path,
         ]);
+        if (result.exitCode != 0) {
+          stderr.writeln(result.stderr);
+          exit(result.exitCode);
+        } else {
+          stdout.writeln(result.stdout);
+        }
       }
     }
   }

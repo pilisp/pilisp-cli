@@ -104,8 +104,7 @@ Future<void> repl(PLEnv env, {bool isRich = true}) async {
         env.addBindingValue(PLSymbol('*e'), e);
         showPrompt = true;
         multiLineProgram = '';
-        stderr.writeln(e);
-        stderr.writeln(st);
+        PiLisp.logEvalException(PiLisp.readString(x), e, stackTrace: st);
       }
       final parent = env.parent;
       if (parent == null) {
@@ -188,8 +187,8 @@ Future<void> repl(PLEnv env, {bool isRich = true}) async {
         env.addBindingValue(PLSymbol('*e'), e);
         showPrompt = true;
         multiLineProgram = '';
-        stderr.writeln(e);
-        stderr.writeln(st);
+        PiLisp.logEvalException(PiLisp.readString(programSource), e,
+            stackTrace: st);
       }
     }
   }

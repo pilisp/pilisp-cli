@@ -1,3 +1,5 @@
+*(Repository Deprecated: See [pilisp/pilisp-monorepo](https://github.com/pilisp/pilisp-monorepo))*
+
 Shared code for running a rudimentary command-line interface to the PiLisp programming language.
 
 Designed originally for use with the [pilisp] and [pilisp-native] projects.
